@@ -1,9 +1,7 @@
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import cv2
-
 from deepface import DeepFace 
-import cv2
 
 face_classifier = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -11,15 +9,6 @@ face_classifier = cv2.CascadeClassifier(
 
 video_capture = cv2.VideoCapture(0)
 
-def detect_bounding_box(vid):
-
-    gray_image = cv2.cvtColor(vid, cv2.COLOR_BGR2GRAY)
-    
-    faces = face_classifier.detectMultiScale(gray_image, 1.1, 5, minSize=(40, 40))
-    for (x, y, w, h) in faces:
-        cv2.rectangle(vid, (x, y), (x + w, y + h), (0, 255, 0), 4)
-
-    return faces
 
 face1 = "Modeli/opencv_face_detector.pbtxt"
 face2 = "Modeli/opencv_face_detector_uint8.pb"
@@ -30,36 +19,28 @@ gen2 = "Modeli/gender_net.caffemodel"
 
 MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)
 
-face = cv2.dnn.readNet(face2, face1)
 
-age = cv2.dnn.readNet(age2, age1)
-
-gen = cv2.dnn.readNet(gen2, gen1)
-
-la = ['(0-2)', '(4-6)', '(8-12)', '(15-20)',
-      '(25-32)', '(38-43)', '(48-53)', '(60-100)']
-lg = ['Male', 'Female']
+la = ['0-2', '4-6', '8-12', '15-20',
+      '25-32', '38-43', '48-53', '60-100']
+lg = ['M', 'Ž']
 
 
 def detect_face(vid):
     face = cv2.dnn.readNet(face2, face1)
     age = cv2.dnn.readNet(age2, age1)
     gen = cv2.dnn.readNet(gen2, gen1)
-    fr_cv = vid.copy()
-    fr_cv = cv2.resize(fr_cv, (720, 640))
+    vid_copy = vid.copy()
+    vid_copy = cv2.resize(vid_copy, (720, 640))
 
-    
-    fr_h = fr_cv.shape[0]
-    fr_w = fr_cv.shape[1]
-    blob = cv2.dnn.blobFromImage(fr_cv, 1.0, (300, 300),[104, 117, 123], True, False)
+    fr_h = vid_copy.shape[0]
+    fr_w = vid_copy.shape[1]
+    blob = cv2.dnn.blobFromImage(vid_copy, 1.0, (300, 300),[104, 117, 123], True, False)
 
     face.setInput(blob)
     detections = face.forward()
-
     
     faceBoxes = []
     for i in range(detections.shape[2]):
-        
         confidence = detections[0, 0, i, 2]
         if confidence > 0.7:
 
@@ -70,16 +51,24 @@ def detect_face(vid):
             
             faceBoxes.append([x1, y1, x2, y2])
             
-            cv2.rectangle(fr_cv, (x1, y1), (x2, y2),(0, 255, 0), int(round(fr_h/150)), 8) 
+            cv2.rectangle(vid_copy, (x1, y1), (x2, y2),(0, 255, 0), int(round(fr_h/150)), 8) 
 
     
-    #if not faceBoxes:
-        #print("No face detected")
+    if not faceBoxes:
+        #print("Nije detektirano lice.")
+        cv2.putText(vid_copy,
+                    f"Nije detektirano lice.",
+                    (20, 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (217, 0, 0),
+                    2,
+                    cv2.LINE_AA)
 
    
     for faceBox in faceBoxes:
         
-        face = fr_cv[max(0, faceBox[1]-15):min(faceBox[3]+15, fr_cv.shape[0]-1),max(0, faceBox[0]-15):min(faceBox[2]+15,fr_cv.shape[1]-1)]
+        face = vid_copy[max(0, faceBox[1]-15):min(faceBox[3]+15, vid_copy.shape[0]-1),max(0, faceBox[0]-15):min(faceBox[2]+15,vid_copy.shape[1]-1)]
         
         blob = cv2.dnn.blobFromImage(face, 1.0, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
 
@@ -95,8 +84,8 @@ def detect_face(vid):
         result = DeepFace.analyze(face,actions=['emotion'], enforce_detection=False)
         emotion = result[0]["dominant_emotion"] 
 
-        cv2.putText(fr_cv,
-                    f'{gender}, {age_int},{emotion}',
+        cv2.putText(vid_copy,
+                    f'{gender}, {age_int}, {emotion}',
                     (faceBox[0]-150, faceBox[1]-10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
@@ -104,7 +93,7 @@ def detect_face(vid):
                     2,
                     cv2.LINE_AA)
         
-    return fr_cv
+    return vid_copy
 
 
 holdColor="f"
